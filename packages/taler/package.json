@@ -1,6 +1,6 @@
 {
   "name": "@eupi/taler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Top up GNU Taler reserves with standard European payment QR codes (EPC069-12 / EN 18184)",
   "keywords": [
     "taler",

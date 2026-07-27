@@ -1,10 +1,14 @@
 name: Release
 
-# Publishes @eupi/qr to npm when a GitHub Release is published.
+# Publishes a package to npm when a GitHub Release is published.
 #
-# Uses npm trusted publishing (OIDC): configure the GitHub Actions trusted
-# publisher on npmjs.com for the package (repository LedgerInnovation/eupi,
-# workflow release.yml) and no npm token secret is needed; provenance
+# The release tag selects the package: qr-vX.Y.Z publishes packages/qr,
+# taler-vX.Y.Z publishes packages/taler. The tag version must match the
+# package.json version.
+#
+# Uses npm trusted publishing (OIDC): each package has the GitHub Actions
+# trusted publisher configured on npmjs.com (repository LedgerInnovation/eupi,
+# workflow release.yml), so no npm token secret is needed and provenance
 # attestations are generated automatically. The very first publish of a new
 # package must be done manually from a maintainer machine.
 
@@ -12,6 +16,14 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options:
+          - qr
+          - taler
 
 permissions:
   contents: read
@@ -27,10 +39,37 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+      - name: Resolve package from release tag
+        id: pkg
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_PACKAGE: ${{ inputs.package }}
+        run: |
+          if [ -n "$TAG" ]; then
+            case "$TAG" in
+              qr-v*) dir=packages/qr ;;
+              taler-v*) dir=packages/taler ;;
+              *) echo "Unrecognised release tag: $TAG" >&2; exit 1 ;;
+            esac
+            want="${TAG#*-v}"
+            have=$(node -p "require('./$dir/package.json').version")
+            if [ "$want" != "$have" ]; then
+              echo "Tag version $want does not match $dir package.json version $have" >&2
+              exit 1
+            fi
+          else
+            dir="packages/$DISPATCH_PACKAGE"
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
       - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r test
-      - run: npm publish --access public
-        working-directory: packages/qr
+      # pnpm pack rewrites the workspace: protocol in dependencies to
+      # registry-compatible ranges; npm >= 11.5.1 then performs the npm
+      # trusted-publishing OIDC exchange (no token secret) with provenance.
+      - name: Publish
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          tarball=$(pnpm pack | tail -n 1)
+          npm publish "$tarball" --access public
