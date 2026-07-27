@@ -168,6 +168,13 @@ describe("payer-presented MSCT QR codes", () => {
     expect(() => encodeMsctPayerToken({ ...COMMON, token: "x".repeat(71) })).toThrow(MsctQrError);
   });
 
+  it("rejects oversized value-added services data on scanned payer URLs", () => {
+    const bad = `https://qr.example.org/1/0/AB1/?iss=XY9&tok=t&vas=${"v".repeat(71)}`;
+    expect(() => decodeMsctQr(bad, { presenter: "payer" })).toThrow(MsctQrError);
+    const { issues } = decodeMsctQr(bad, { presenter: "payer", strict: false });
+    expect(issues.some((i) => i.field === "valueAddedServices")).toBe(true);
+  });
+
   it("rejects empty identifiers on scanned URLs in strict mode", () => {
     expect(() => decodeMsctQr("https://qr.example.org/1/m/AB1/?iss=XY9&tok=")).toThrow(MsctQrError);
     expect(() =>

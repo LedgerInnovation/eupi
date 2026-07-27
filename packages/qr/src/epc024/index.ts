@@ -490,6 +490,9 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       issues.push({ field: "token", message: "payer token must be 1..70 characters" });
     }
     const vas = params.get(keys.valueAddedServices);
+    if (vas !== null && (vas.length < 1 || vas.length > 70)) {
+      issues.push({ field: "valueAddedServices", message: "value-added services data must be 1..70 characters" });
+    }
     data = {
       kind: "payer-token",
       issuer,
