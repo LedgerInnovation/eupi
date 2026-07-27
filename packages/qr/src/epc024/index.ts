@@ -27,6 +27,7 @@
 
 import { isValidIban, isValidRfReference, normalizeIban } from "../shared/iban.js";
 import { formatAmount, isValidAmountString } from "../shared/amount.js";
+import { hasControlChars } from "../shared/text.js";
 
 /** Payment context for payee-presented QR codes (EPC024-22 section 4.5). */
 export type MsctContext = "m" | "e" | "i" | "p" | "w";
@@ -143,18 +144,55 @@ export interface PayerTokenOptions extends CommonEncodeOptions {
   valueAddedServices?: string;
 }
 
+/** Hostname per RFC 1123: dot-separated labels, no credentials, path, port or query. */
+const HOSTNAME_RE =
+  /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+
+/** Query parameter names must be non-empty, unique, and URL-safe unreserved. */
+const KEY_NAME_RE = /^[A-Za-z0-9._~-]+$/;
+
 function mergeKeys(overrides?: Partial<MsctKeys>): MsctKeys {
-  return { ...DEFAULT_KEYS, ...overrides };
+  const keys = { ...DEFAULT_KEYS, ...overrides } as MsctKeys;
+  const issues: MsctIssue[] = [];
+  const seen = new Map<string, string>();
+  for (const [field, name] of Object.entries(keys)) {
+    if (typeof name !== "string" || !KEY_NAME_RE.test(name)) {
+      issues.push({ field, message: `parameter name "${name}" must be non-empty and URL-safe` });
+      continue;
+    }
+    const previous = seen.get(name);
+    if (previous !== undefined) {
+      // Two fields sharing a name would silently overwrite one another.
+      issues.push({ field, message: `parameter name "${name}" is already used by "${previous}"` });
+    } else {
+      seen.set(name, field);
+    }
+  }
+  if (issues.length > 0) throw new MsctQrError("invalid parameter name mapping", issues);
+  return keys;
 }
 
 function baseUrl(domain: string, version: number, context: string, providerId: string): URL {
+  // The domain must be a bare hostname. Interpolating anything else lets a
+  // caller point the QR at another host entirely, for example by smuggling
+  // credentials ("trusted.example@evil.example") or a path.
+  if (!HOSTNAME_RE.test(domain)) {
+    throw new MsctQrError("invalid domain", [
+      {
+        field: "domain",
+        message: "must be a bare hostname, without credentials, port, path, query or fragment",
+      },
+    ]);
+  }
   if (!PROVIDER_ID_RE.test(providerId)) {
     throw new MsctQrError("invalid MSCT service provider ID", [
       { field: "providerId", message: "must be exactly 3 alphanumeric characters" },
     ]);
   }
-  if (!Number.isInteger(version) || version < 1) {
-    throw new MsctQrError("invalid version", [{ field: "version", message: "must be a positive integer" }]);
+  if (version !== 1) {
+    throw new MsctQrError("unsupported version", [
+      { field: "version", message: "only QR-code specification version 1 is defined" },
+    ]);
   }
   return new URL(`https://${domain}/${version}/${context}/${providerId}/`);
 }
@@ -162,6 +200,13 @@ function baseUrl(domain: string, version: number, context: string, providerId: s
 function requireIssuer(issuer: string, issues: MsctIssue[]): void {
   if (!ISSUER_RE.test(issuer)) {
     issues.push({ field: "issuer", message: "payload issuer must be exactly 3 alphanumeric characters" });
+  }
+}
+
+/** Rejects control characters in free-text payment data. */
+function checkText(field: string, value: string | undefined, issues: MsctIssue[]): void {
+  if (value !== undefined && hasControlChars(value)) {
+    issues.push({ field, message: `${field} must not contain control characters` });
   }
 }
 
@@ -185,6 +230,8 @@ function applyTransactionFields(
     }
     url.searchParams.set(keys.purpose, fields.purpose);
   }
+  checkText("reference", fields.reference, issues);
+  checkText("remittance", fields.remittance, issues);
   if (fields.reference !== undefined && fields.remittance !== undefined) {
     issues.push({ field: "reference", message: "structured and unstructured remittance are mutually exclusive" });
   }
@@ -216,6 +263,7 @@ export function encodeMsctPayeeToken(options: PayeeTokenOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
   requireIssuer(options.issuer, issues);
+  checkText("token", options.token, issues);
   if (options.token.length < 1 || options.token.length > 300) {
     issues.push({ field: "token", message: "payee token must be 1..300 characters" });
   }
@@ -232,6 +280,8 @@ export function encodeMsctPayeeProxy(options: PayeeProxyOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
   requireIssuer(options.issuer, issues);
+  checkText("proxy", options.proxy, issues);
+  checkText("referencePartyProxy", options.referencePartyProxy, issues);
   if (options.proxy.length < 1 || options.proxy.length > 70) {
     issues.push({ field: "proxy", message: "proxy must be 1..70 characters" });
   }
@@ -258,6 +308,10 @@ export function encodeMsctPayeeClear(options: PayeeClearOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
   requireIssuer(options.issuer, issues);
+  checkText("name", options.name, issues);
+  checkText("tradeName", options.tradeName, issues);
+  checkText("referencePartyName", options.referencePartyName, issues);
+  checkText("referencePartyTradeName", options.referencePartyTradeName, issues);
   if (options.name.length < 1 || options.name.length > 70) {
     issues.push({ field: "name", message: "payee name must be 1..70 characters" });
   }
@@ -302,6 +356,8 @@ export function encodeMsctPayerToken(options: PayerTokenOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
   requireIssuer(options.issuer, issues);
+  checkText("token", options.token, issues);
+  checkText("valueAddedServices", options.valueAddedServices, issues);
   if (options.token.length < 1 || options.token.length > 70) {
     issues.push({ field: "token", message: "payer token must be 1..70 characters" });
   }
@@ -398,6 +454,13 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   if (url.protocol !== "https:") {
     throw new MsctQrError("MSCT QR codes must use https", [{ field: "url", message: `unexpected protocol ${url.protocol}` }]);
   }
+  if (url.username !== "" || url.password !== "") {
+    // Credentials in the authority are a spoofing device: the visible prefix
+    // is not the host the payer's software would actually contact.
+    throw new MsctQrError("MSCT QR URLs must not carry credentials", [
+      { field: "url", message: "userinfo is not permitted in the URL authority" },
+    ]);
+  }
   const segments = url.pathname.split("/").filter((s) => s !== "");
   if (segments.length !== 3) {
     throw new MsctQrError("URL path must be /<version>/<type>/<provider ID>/", [
@@ -405,11 +468,18 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
     ]);
   }
   const [versionSeg, context, providerId] = segments as [string, string, string];
-  const version = Number(versionSeg);
+  // Only the exact serialized form counts: "01" or " 1" are not version 1,
+  // and a higher version must not be decoded with version 1 semantics.
+  const version = /^[1-9][0-9]*$/.test(versionSeg) ? Number(versionSeg) : Number.NaN;
 
   const issues: MsctIssue[] = [];
-  if (!Number.isInteger(version) || version < 1) {
+  if (Number.isNaN(version)) {
     issues.push({ field: "version", message: `unrecognised version segment "${versionSeg}"` });
+  } else if (version !== 1) {
+    issues.push({
+      field: "version",
+      message: `unsupported QR-code specification version ${version}; only version 1 is defined`,
+    });
   }
   if (!PROVIDER_ID_RE.test(providerId)) {
     issues.push({ field: "providerId", message: "MSCT service provider ID must be 3 alphanumeric characters" });
@@ -420,6 +490,15 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
 
   const params = url.searchParams;
   const parts: MsctUrlParts = { domain: url.hostname, version, context, providerId, params };
+
+  // A repeated recognized parameter is ambiguous: readers that take the first
+  // value and readers that take the last would act on different payments.
+  for (const [field, name] of Object.entries(keys)) {
+    if (params.getAll(name).length > 1) {
+      issues.push({ field, message: `parameter "${name}" appears more than once` });
+    }
+  }
+
   const issuer = params.get(keys.issuer) ?? "";
   if (!ISSUER_RE.test(issuer)) {
     issues.push({ field: "issuer", message: "payload issuer missing or not 3 alphanumeric characters" });
@@ -491,6 +570,22 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   const iban = params.get(keys.iban);
   const proxy = params.get(keys.proxy);
   const token = params.get(keys.token);
+
+  // Each payload carries exactly one profile. More than one selector is
+  // ambiguous, and resolving it by priority would silently discard whichever
+  // payee data the reader did not pick.
+  if (presenter === "payee") {
+    const selectors = [
+      iban !== null ? keys.iban : undefined,
+      proxy !== null ? keys.proxy : undefined,
+      token !== null ? keys.token : undefined,
+    ].filter((s): s is string => s !== undefined);
+    if (selectors.length > 1) {
+      throw new MsctQrError("payload matches more than one profile", [
+        { field: "payload", message: `conflicting profile selectors: ${selectors.join(", ")}` },
+      ]);
+    }
+  }
 
   if (presenter === "payer") {
     if (token === null) {

@@ -31,3 +31,18 @@ export function isLatin1(text: string): boolean {
   }
   return true;
 }
+
+/**
+ * C0 and C1 control characters, including CR and LF.
+ *
+ * These must never appear in payment data. EPC069-12 joins its elements with
+ * line separators, so a control character inside a field would shift every
+ * following element: a payload whose beneficiary name contained a line feed
+ * could displace the IBAN that the payer's bank app displays and credits.
+ */
+const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+
+/** True when the text contains a C0/C1 control character (including CR or LF). */
+export function hasControlChars(text: string): boolean {
+  return CONTROL_CHARS.test(text);
+}

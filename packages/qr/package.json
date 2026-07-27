@@ -1,6 +1,6 @@
 {
   "name": "@eupi/qr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Encode and decode European payment QR codes: EPC069-12 (EPC QR / GiroCode) and EPC024-22 (MSCT QR, basis of EN 18184)",
   "keywords": [
     "sepa",
@@ -49,7 +49,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "tsup": "^8.5.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"
   }

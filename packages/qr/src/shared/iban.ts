@@ -46,9 +46,25 @@ function toNumericForm(rearranged: string): string {
 export function isValidIban(input: string): boolean {
   const iban = normalizeIban(input);
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/.test(iban)) return false;
+  // The country must be in the IBAN registry: an unregistered prefix with
+  // valid check digits (e.g. "ZZ93...") is not a payable account.
   const expected = IBAN_LENGTHS[iban.slice(0, 2)];
-  if (expected !== undefined && iban.length !== expected) return false;
+  if (expected === undefined || iban.length !== expected) return false;
   return mod97(toNumericForm(iban.slice(4) + iban.slice(0, 4))) === 1;
+}
+
+/**
+ * SEPA countries outside the EEA. EPC069-12 keeps the BIC mandatory for
+ * transactions involving SCT scheme participants from non-EEA countries,
+ * so version 002 payloads paying into these countries still need one.
+ */
+export const NON_EEA_SEPA_COUNTRIES: ReadonlySet<string> = new Set([
+  "AD", "CH", "GB", "GG", "IM", "JE", "MC", "SM", "VA",
+]);
+
+/** True when the IBAN belongs to a SEPA country outside the EEA. */
+export function isNonEeaSepaIban(input: string): boolean {
+  return NON_EEA_SEPA_COUNTRIES.has(normalizeIban(input).slice(0, 2));
 }
 
 /**
