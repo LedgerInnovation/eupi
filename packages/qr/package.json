@@ -1,0 +1,56 @@
+{
+  "name": "@eupi/qr",
+  "version": "0.1.0",
+  "description": "Encode and decode European payment QR codes: EPC069-12 (EPC QR / GiroCode) and EPC024-22 (MSCT QR, basis of EN 18184)",
+  "keywords": [
+    "sepa",
+    "sepa-instant",
+    "qr",
+    "girocode",
+    "epc-qr",
+    "epc069-12",
+    "epc024-22",
+    "en18184",
+    "payments",
+    "sct",
+    "iban"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LedgerInnovation/eupi.git",
+    "directory": "packages/qr"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

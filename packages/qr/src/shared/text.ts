@@ -1,0 +1,33 @@
+/**
+ * Character-set handling for EPC069-12 payloads.
+ *
+ * EPC069-12 section 2.1 defines eight character sets:
+ *   1: UTF-8      2: ISO 8859-1  3: ISO 8859-2  4: ISO 8859-4
+ *   5: ISO 8859-5 6: ISO 8859-7  7: ISO 8859-10 8: ISO 8859-15
+ */
+
+export type EpcCharset = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+const utf8 = new TextEncoder();
+
+/**
+ * Byte length of a payload in the given character set.
+ *
+ * UTF-8 is measured exactly. All ISO 8859 variants are single-byte encodings,
+ * so the byte length equals the character count; for ISO 8859-1 we additionally
+ * verify every character is encodable (code point <= 0xFF). For sets 3..8 the
+ * caller is responsible for using only characters that exist in that code page;
+ * this function only counts.
+ */
+export function byteLength(text: string, charset: EpcCharset): number {
+  if (charset === 1) return utf8.encode(text).length;
+  return text.length;
+}
+
+/** True when every character fits ISO 8859-1 (code point <= 0xFF). */
+export function isLatin1(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) > 0xff) return false;
+  }
+  return true;
+}
