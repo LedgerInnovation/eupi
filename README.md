@@ -1,13 +1,14 @@
-# eupi
+# EUPI
 
-**Open-source building blocks for instant payments in Europe.**
+**The European Universal Payments Interface: open-source building blocks for instant
+payments in Europe.**
 
 Europe has world-class payment rails: since October 2025 every eurozone bank must send and
 receive SEPA Instant Credit Transfers 24/7 in under 10 seconds, at no premium over a regular
 transfer. The standards on top of the rails are open too: QR codes, payee verification,
 request-to-pay. What is missing is open-source software that implements them.
 
-eupi fills that gap: a set of independently usable, Apache-2.0 licensed libraries and
+EUPI fills that gap: a set of independently usable, Apache-2.0 licensed libraries and
 reference services for building payment experiences on SEPA, inspired by what UPI did for
 India and Pix for Brazil, but as an open commons rather than a closed scheme.
 
