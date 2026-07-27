@@ -219,7 +219,8 @@ export interface DecodeEpcQrOptions {
  */
 export function decodeEpcQr(payload: string, options: DecodeEpcQrOptions = {}): DecodeEpcQrResult {
   const strict = options.strict ?? true;
-  const lines = payload.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
+  const raw = payload.replace(/[\r\n]+$/, "");
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
 
   if (lines[0] !== "BCD") {
     throw new EpcQrError(`not an EPC QR payload: service tag is "${lines[0] ?? ""}"`, [
@@ -267,6 +268,15 @@ export function decodeEpcQr(payload: string, options: DecodeEpcQrOptions = {}): 
   }
   if (lines.length > 12) {
     issues.push({ element: "payload", message: `payload has ${lines.length} elements, maximum is 12` });
+  }
+  if (charsetNum >= 1 && charsetNum <= 8) {
+    if (charsetNum === 2 && !isLatin1(raw)) {
+      issues.push({ element: "charset", message: "character set 2 requires ISO 8859-1 encodable content" });
+    }
+    const bytes = byteLength(raw, charsetNum as EpcCharset);
+    if (bytes > EPC069_MAX_BYTES) {
+      issues.push({ element: "payload", message: `payload is ${bytes} bytes, maximum is ${EPC069_MAX_BYTES}` });
+    }
   }
 
   if (strict && issues.length > 0) {

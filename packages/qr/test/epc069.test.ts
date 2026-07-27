@@ -214,4 +214,31 @@ describe("decodeEpcQr", () => {
     const { issues } = decodeEpcQr("BCD\n002\n1\nSCT\n\nTest\nXX00INVALID", { strict: false });
     expect(issues.some((i) => i.element === "iban")).toBe(true);
   });
+
+  it("rejects scanned payloads over the 331 byte limit in strict mode", () => {
+    const oversized = [
+      "BCD",
+      "002",
+      "1",
+      "SCT",
+      "",
+      "N".repeat(70),
+      "BE72000000001616",
+      "EUR999999999.99",
+      "GDDS",
+      "",
+      "x".repeat(140),
+      "y".repeat(70),
+    ].join("\n");
+    expect(() => decodeEpcQr(oversized)).toThrow(EpcQrError);
+    const { issues } = decodeEpcQr(oversized, { strict: false });
+    expect(issues.some((i) => i.element === "payload" && /331/.test(i.message))).toBe(true);
+  });
+
+  it("rejects charset 2 payloads with non Latin-1 content in strict mode", () => {
+    const payload = "BCD\n002\n2\nSCT\n\nŚwidnica\nBE72000000001616";
+    expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);
+    const { issues } = decodeEpcQr(payload, { strict: false });
+    expect(issues.some((i) => i.element === "charset" && /ISO 8859-1/.test(i.message))).toBe(true);
+  });
 });

@@ -416,7 +416,10 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   const readTransaction = (): DecodedTransaction => {
     const tx: DecodedTransaction = {};
     const mcc = params.get(keys.mcc);
-    if (mcc !== null) tx.mcc = mcc;
+    if (mcc !== null) {
+      if (!MCC_RE.test(mcc)) issues.push({ field: "mcc", message: `MCC must be 4 digits, got "${mcc}"` });
+      tx.mcc = mcc;
+    }
     const ins = params.get(keys.instrument);
     if (ins !== null) {
       if (ins !== "SCT" && ins !== "INST") {
@@ -428,15 +431,38 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       issues.push({ field: "instrument", message: "type of payment instrument is mandatory" });
     }
     const pur = params.get(keys.purpose);
-    if (pur !== null) tx.purpose = pur;
+    if (pur !== null) {
+      if (!PURPOSE_RE.test(pur)) {
+        issues.push({ field: "purpose", message: "purpose must be 1..4 alphanumeric characters" });
+      }
+      tx.purpose = pur;
+    }
     const rs = params.get(keys.referenceStructured);
-    if (rs !== null) tx.reference = rs;
     const ru = params.get(keys.remittanceUnstructured);
-    if (ru !== null) tx.remittance = ru;
+    if (rs !== null && ru !== null) {
+      issues.push({ field: "reference", message: "structured and unstructured remittance are mutually exclusive" });
+    }
+    if (rs !== null) {
+      if (rs.length > 35) {
+        issues.push({ field: "reference", message: "structured remittance is limited to 35 characters" });
+      } else if (/^RF/i.test(rs) && !isValidRfReference(rs)) {
+        issues.push({ field: "reference", message: `invalid ISO 11649 creditor reference "${rs}"` });
+      }
+      tx.reference = rs;
+    }
+    if (ru !== null) {
+      if (ru.length > 35) {
+        issues.push({ field: "remittance", message: "unstructured remittance is limited to 35 characters" });
+      }
+      tx.remittance = ru;
+    }
     const cur = params.get(keys.currency);
     if (cur === null) {
       issues.push({ field: "currency", message: "currency is mandatory" });
     } else {
+      if (!CURRENCY_RE.test(cur)) {
+        issues.push({ field: "currency", message: `currency must be 1..3 alphanumeric characters, got "${cur}"` });
+      }
       tx.currency = cur;
     }
     const amt = params.get(keys.amount);
@@ -476,8 +502,17 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
     }
     if (!isValidIban(iban)) issues.push({ field: "iban", message: `invalid IBAN "${iban}"` });
     const tn = params.get(keys.tradeName);
+    if (tn !== null && tn.length > 35) {
+      issues.push({ field: "tradeName", message: "trade name is limited to 35 characters" });
+    }
     const rn = params.get(keys.referencePartyName);
+    if (rn !== null && rn.length > 70) {
+      issues.push({ field: "referencePartyName", message: "reference party name is limited to 70 characters" });
+    }
     const rtn = params.get(keys.referencePartyTradeName);
+    if (rtn !== null && rtn.length > 35) {
+      issues.push({ field: "referencePartyTradeName", message: "reference party trade name is limited to 35 characters" });
+    }
     data = {
       kind: "payee-clear",
       issuer,
@@ -492,6 +527,9 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   } else if (proxy !== null) {
     if (proxy.length > 70) issues.push({ field: "proxy", message: "proxy is limited to 70 characters" });
     const rpx = params.get(keys.referencePartyProxy);
+    if (rpx !== null && rpx.length > 70) {
+      issues.push({ field: "referencePartyProxy", message: "reference party proxy is limited to 70 characters" });
+    }
     data = {
       kind: "payee-proxy",
       issuer,

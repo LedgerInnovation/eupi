@@ -120,6 +120,36 @@ describe("payee-presented MSCT QR codes", () => {
   it("requires https", () => {
     expect(() => decodeMsctQr("http://qr.example.org/1/m/AB1/?iss=XY9&tok=a")).toThrow(/https/);
   });
+
+  it("validates transaction fields of scanned URLs in strict mode", () => {
+    const bad =
+      "https://qr.example.org/1/m/AB1/?iss=XY9&iban=BE72000000001616&nm=Alice" +
+      "&ins=CARD&mcc=12&pur=TOOLONG&cur=EURO&amt=0&rs=RF18539007547035";
+    expect(() => decodeMsctQr(bad)).toThrow(MsctQrError);
+    const { issues } = decodeMsctQr(bad, { strict: false });
+    const fields = issues.map((i) => i.field);
+    expect(fields).toContain("instrument");
+    expect(fields).toContain("mcc");
+    expect(fields).toContain("purpose");
+    expect(fields).toContain("currency");
+    expect(fields).toContain("amount");
+    expect(fields).toContain("reference");
+  });
+
+  it("rejects simultaneous remittance fields on scanned URLs", () => {
+    const bad =
+      "https://qr.example.org/1/m/AB1/?iss=XY9&prx=p&ins=INST&cur=EUR&amt=1&rs=INV-1&ru=also";
+    const { issues } = decodeMsctQr(bad, { strict: false });
+    expect(issues.some((i) => i.message.includes("mutually exclusive"))).toBe(true);
+  });
+
+  it("validates name lengths of scanned clear-profile URLs", () => {
+    const bad =
+      "https://qr.example.org/1/m/AB1/?iss=XY9&iban=BE72000000001616" +
+      `&nm=Alice&tn=${"t".repeat(36)}&ins=INST&cur=EUR&amt=1`;
+    const { issues } = decodeMsctQr(bad, { strict: false });
+    expect(issues.some((i) => i.field === "tradeName")).toBe(true);
+  });
 });
 
 describe("payer-presented MSCT QR codes", () => {
