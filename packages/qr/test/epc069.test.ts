@@ -235,6 +235,30 @@ describe("decodeEpcQr", () => {
     expect(issues.some((i) => i.element === "payload" && /331/.test(i.message))).toBe(true);
   });
 
+  it("counts trailing separators toward the 331 byte limit", () => {
+    // Valid fields summing to exactly 331 bytes: accepted as scanned,
+    // rejected once a trailing newline pushes the true payload to 332.
+    const exact = [
+      "BCD",
+      "002",
+      "1",
+      "SCT",
+      "",
+      "N".repeat(70),
+      "BE72000000001616",
+      "EUR999999999.99",
+      "GDDS",
+      "",
+      "x".repeat(140),
+      "y".repeat(65),
+    ].join("\n");
+    expect(new TextEncoder().encode(exact).length).toBe(331);
+    expect(decodeEpcQr(exact).issues).toHaveLength(0);
+    expect(() => decodeEpcQr(exact + "\n")).toThrow(EpcQrError);
+    const { issues } = decodeEpcQr(exact + "\n", { strict: false });
+    expect(issues.some((i) => i.element === "payload" && /332/.test(i.message))).toBe(true);
+  });
+
   it("rejects charset 2 payloads with non Latin-1 content in strict mode", () => {
     const payload = "BCD\n002\n2\nSCT\n\nŚwidnica\nBE72000000001616";
     expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);

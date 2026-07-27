@@ -270,10 +270,12 @@ export function decodeEpcQr(payload: string, options: DecodeEpcQrOptions = {}): 
     issues.push({ element: "payload", message: `payload has ${lines.length} elements, maximum is 12` });
   }
   if (charsetNum >= 1 && charsetNum <= 8) {
-    if (charsetNum === 2 && !isLatin1(raw)) {
+    if (charsetNum === 2 && !isLatin1(payload)) {
       issues.push({ element: "charset", message: "character set 2 requires ISO 8859-1 encodable content" });
     }
-    const bytes = byteLength(raw, charsetNum as EpcCharset);
+    // Measured on the input as scanned: the 331-byte limit applies to the
+    // whole QR payload, including any (non-conformant) trailing separator.
+    const bytes = byteLength(payload, charsetNum as EpcCharset);
     if (bytes > EPC069_MAX_BYTES) {
       issues.push({ element: "payload", message: `payload is ${bytes} bytes, maximum is ${EPC069_MAX_BYTES}` });
     }
