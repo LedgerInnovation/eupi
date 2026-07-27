@@ -62,9 +62,11 @@ jobs:
             dir="packages/$DISPATCH_PACKAGE"
           fi
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
-      - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r test
-      - run: npm publish --access public
+      # pnpm publish (not npm publish) so pnpm's workspace: protocol in
+      # dependencies is rewritten to a registry-compatible range at pack time.
+      # pnpm >= 10.13 supports npm trusted publishing (OIDC) natively.
+      - run: pnpm publish --access public --no-git-checks
         working-directory: ${{ steps.pkg.outputs.dir }}
