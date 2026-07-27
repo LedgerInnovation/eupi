@@ -167,4 +167,16 @@ describe("payer-presented MSCT QR codes", () => {
   it("limits payer tokens to 70 characters", () => {
     expect(() => encodeMsctPayerToken({ ...COMMON, token: "x".repeat(71) })).toThrow(MsctQrError);
   });
+
+  it("rejects empty identifiers on scanned URLs in strict mode", () => {
+    expect(() => decodeMsctQr("https://qr.example.org/1/m/AB1/?iss=XY9&tok=")).toThrow(MsctQrError);
+    expect(() =>
+      decodeMsctQr("https://qr.example.org/1/0/AB1/?iss=XY9&tok=", { presenter: "payer" }),
+    ).toThrow(MsctQrError);
+    const { issues } = decodeMsctQr(
+      "https://qr.example.org/1/m/AB1/?iss=XY9&prx=&ins=INST&cur=EUR&amt=1",
+      { strict: false },
+    );
+    expect(issues.some((i) => i.field === "proxy")).toBe(true);
+  });
 });

@@ -486,7 +486,9 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
         { field: "token", message: "payer token is mandatory" },
       ]);
     }
-    if (token.length > 70) issues.push({ field: "token", message: "payer token is limited to 70 characters" });
+    if (token.length < 1 || token.length > 70) {
+      issues.push({ field: "token", message: "payer token must be 1..70 characters" });
+    }
     const vas = params.get(keys.valueAddedServices);
     data = {
       kind: "payer-token",
@@ -525,7 +527,9 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       ...parts,
     };
   } else if (proxy !== null) {
-    if (proxy.length > 70) issues.push({ field: "proxy", message: "proxy is limited to 70 characters" });
+    if (proxy.length < 1 || proxy.length > 70) {
+      issues.push({ field: "proxy", message: "proxy must be 1..70 characters" });
+    }
     const rpx = params.get(keys.referencePartyProxy);
     if (rpx !== null && rpx.length > 70) {
       issues.push({ field: "referencePartyProxy", message: "reference party proxy is limited to 70 characters" });
@@ -539,7 +543,9 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       ...parts,
     };
   } else if (token !== null) {
-    if (token.length > 300) issues.push({ field: "token", message: "payee token is limited to 300 characters" });
+    if (token.length < 1 || token.length > 300) {
+      issues.push({ field: "token", message: "payee token must be 1..300 characters" });
+    }
     data = { kind: "payee-token", issuer, token, ...parts };
   } else {
     throw new MsctQrError("payload matches no known profile", [
