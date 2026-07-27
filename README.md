@@ -17,6 +17,7 @@ India and Pix for Brazil, but as an open commons rather than a closed scheme.
 | Package | Status | Description |
 |---|---|---|
 | [`@eupi/qr`](packages/qr) | alpha | Encode and decode European payment QR codes: EPC069-12 (the "EPC QR" / GiroCode scanned by many European banking apps today) and EPC024-22 (the MSCT QR standard behind EN 18184:2025, covering merchant-presented and payer-presented codes for instant payments) |
+| [`@eupi/taler`](packages/taler) | alpha | Top up GNU Taler reserves with standard EPC QR codes: any European banking app becomes a Taler on-ramp, no payer-side software needed |
 
 Planned: Verification of Payee client (EPC VoP scheme), SEPA Request-to-Pay (EPC133-22),
 alias directory reference implementation, settlement connectors, reference mobile wallet.
