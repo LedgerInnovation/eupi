@@ -39,7 +39,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
       - name: Resolve package from release tag
         id: pkg
         env:
@@ -62,11 +61,15 @@ jobs:
             dir="packages/$DISPATCH_PACKAGE"
           fi
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
+      - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r test
-      # pnpm publish (not npm publish) so pnpm's workspace: protocol in
-      # dependencies is rewritten to a registry-compatible range at pack time.
-      # pnpm >= 10.13 supports npm trusted publishing (OIDC) natively.
-      - run: pnpm publish --access public --no-git-checks
+      # pnpm pack rewrites the workspace: protocol in dependencies to
+      # registry-compatible ranges; npm >= 11.5.1 then performs the npm
+      # trusted-publishing OIDC exchange (no token secret) with provenance.
+      - name: Publish
         working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          tarball=$(pnpm pack | tail -n 1)
+          npm publish "$tarball" --access public
