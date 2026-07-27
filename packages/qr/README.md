@@ -89,7 +89,7 @@ if (data.kind === "payee-clear") {
 
 EPC024-22 standardises the URL structure and the payload *content*, but explicitly
 leaves the query parameter *names* to the payload issuer. The names used by default
-here (`iss`, `tok`, `prx`, `nm`, `iban`, `ins`, `cur`, `amt`, ...) are the **eupi
+here (`iss`, `tok`, `prx`, `nm`, `iban`, `ins`, `cur`, `amt`, ...) are the **EUPI
 profile v1**, an open naming proposal. Every encode and decode function accepts a
 `keys` mapping to interoperate with issuers that made different choices, and
 `decodeMsctQr` always returns the raw `URLSearchParams`.
