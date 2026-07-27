@@ -168,6 +168,33 @@ describe("payer-presented MSCT QR codes", () => {
     expect(() => encodeMsctPayerToken({ ...COMMON, token: "x".repeat(71) })).toThrow(MsctQrError);
   });
 
+  it("rejects empty optional fields on encode so output always decodes", () => {
+    expect(() => encodeMsctPayerToken({ ...COMMON, token: "t", valueAddedServices: "" })).toThrow(
+      MsctQrError,
+    );
+    expect(() =>
+      encodeMsctPayeeClear({
+        ...COMMON,
+        context: "m",
+        name: "Alice",
+        iban: "BE72000000001616",
+        instrument: "INST",
+        amount: "1",
+        tradeName: "",
+      }),
+    ).toThrow(MsctQrError);
+    expect(() =>
+      encodeMsctPayeeProxy({
+        ...COMMON,
+        context: "m",
+        proxy: "p",
+        instrument: "INST",
+        amount: "1",
+        remittance: "",
+      }),
+    ).toThrow(MsctQrError);
+  });
+
   it("rejects oversized value-added services data on scanned payer URLs", () => {
     const bad = `https://qr.example.org/1/0/AB1/?iss=XY9&tok=t&vas=${"v".repeat(71)}`;
     expect(() => decodeMsctQr(bad, { presenter: "payer" })).toThrow(MsctQrError);

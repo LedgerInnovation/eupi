@@ -189,16 +189,16 @@ function applyTransactionFields(
     issues.push({ field: "reference", message: "structured and unstructured remittance are mutually exclusive" });
   }
   if (fields.reference !== undefined) {
-    if (fields.reference.length > 35) {
-      issues.push({ field: "reference", message: "structured remittance is limited to 35 characters" });
+    if (fields.reference.length < 1 || fields.reference.length > 35) {
+      issues.push({ field: "reference", message: "structured remittance must be 1..35 characters" });
     } else if (/^RF/i.test(fields.reference) && !isValidRfReference(fields.reference)) {
       issues.push({ field: "reference", message: "invalid ISO 11649 creditor reference" });
     }
     url.searchParams.set(keys.referenceStructured, fields.reference);
   }
   if (fields.remittance !== undefined) {
-    if (fields.remittance.length > 35) {
-      issues.push({ field: "remittance", message: "unstructured remittance is limited to 35 characters" });
+    if (fields.remittance.length < 1 || fields.remittance.length > 35) {
+      issues.push({ field: "remittance", message: "unstructured remittance must be 1..35 characters" });
     }
     url.searchParams.set(keys.remittanceUnstructured, fields.remittance);
   }
@@ -235,8 +235,11 @@ export function encodeMsctPayeeProxy(options: PayeeProxyOptions): string {
   if (options.proxy.length < 1 || options.proxy.length > 70) {
     issues.push({ field: "proxy", message: "proxy must be 1..70 characters" });
   }
-  if (options.referencePartyProxy !== undefined && options.referencePartyProxy.length > 70) {
-    issues.push({ field: "referencePartyProxy", message: "reference party proxy is limited to 70 characters" });
+  if (
+    options.referencePartyProxy !== undefined &&
+    (options.referencePartyProxy.length < 1 || options.referencePartyProxy.length > 70)
+  ) {
+    issues.push({ field: "referencePartyProxy", message: "reference party proxy must be 1..70 characters" });
   }
 
   const url = baseUrl(options.domain, options.version ?? 1, options.context, options.providerId);
@@ -258,14 +261,20 @@ export function encodeMsctPayeeClear(options: PayeeClearOptions): string {
   if (options.name.length < 1 || options.name.length > 70) {
     issues.push({ field: "name", message: "payee name must be 1..70 characters" });
   }
-  if (options.tradeName !== undefined && options.tradeName.length > 35) {
-    issues.push({ field: "tradeName", message: "trade name is limited to 35 characters" });
+  if (options.tradeName !== undefined && (options.tradeName.length < 1 || options.tradeName.length > 35)) {
+    issues.push({ field: "tradeName", message: "trade name must be 1..35 characters" });
   }
-  if (options.referencePartyName !== undefined && options.referencePartyName.length > 70) {
-    issues.push({ field: "referencePartyName", message: "reference party name is limited to 70 characters" });
+  if (
+    options.referencePartyName !== undefined &&
+    (options.referencePartyName.length < 1 || options.referencePartyName.length > 70)
+  ) {
+    issues.push({ field: "referencePartyName", message: "reference party name must be 1..70 characters" });
   }
-  if (options.referencePartyTradeName !== undefined && options.referencePartyTradeName.length > 35) {
-    issues.push({ field: "referencePartyTradeName", message: "reference party trade name is limited to 35 characters" });
+  if (
+    options.referencePartyTradeName !== undefined &&
+    (options.referencePartyTradeName.length < 1 || options.referencePartyTradeName.length > 35)
+  ) {
+    issues.push({ field: "referencePartyTradeName", message: "reference party trade name must be 1..35 characters" });
   }
   const iban = normalizeIban(options.iban);
   if (!isValidIban(iban)) {
@@ -296,8 +305,11 @@ export function encodeMsctPayerToken(options: PayerTokenOptions): string {
   if (options.token.length < 1 || options.token.length > 70) {
     issues.push({ field: "token", message: "payer token must be 1..70 characters" });
   }
-  if (options.valueAddedServices !== undefined && options.valueAddedServices.length > 70) {
-    issues.push({ field: "valueAddedServices", message: "value-added services data is limited to 70 characters" });
+  if (
+    options.valueAddedServices !== undefined &&
+    (options.valueAddedServices.length < 1 || options.valueAddedServices.length > 70)
+  ) {
+    issues.push({ field: "valueAddedServices", message: "value-added services data must be 1..70 characters" });
   }
   if (issues.length > 0) throw new MsctQrError("invalid MSCT data", issues);
 
@@ -443,16 +455,16 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       issues.push({ field: "reference", message: "structured and unstructured remittance are mutually exclusive" });
     }
     if (rs !== null) {
-      if (rs.length > 35) {
-        issues.push({ field: "reference", message: "structured remittance is limited to 35 characters" });
+      if (rs.length < 1 || rs.length > 35) {
+        issues.push({ field: "reference", message: "structured remittance must be 1..35 characters" });
       } else if (/^RF/i.test(rs) && !isValidRfReference(rs)) {
         issues.push({ field: "reference", message: `invalid ISO 11649 creditor reference "${rs}"` });
       }
       tx.reference = rs;
     }
     if (ru !== null) {
-      if (ru.length > 35) {
-        issues.push({ field: "remittance", message: "unstructured remittance is limited to 35 characters" });
+      if (ru.length < 1 || ru.length > 35) {
+        issues.push({ field: "remittance", message: "unstructured remittance must be 1..35 characters" });
       }
       tx.remittance = ru;
     }
@@ -507,16 +519,16 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
     }
     if (!isValidIban(iban)) issues.push({ field: "iban", message: `invalid IBAN "${iban}"` });
     const tn = params.get(keys.tradeName);
-    if (tn !== null && tn.length > 35) {
-      issues.push({ field: "tradeName", message: "trade name is limited to 35 characters" });
+    if (tn !== null && (tn.length < 1 || tn.length > 35)) {
+      issues.push({ field: "tradeName", message: "trade name must be 1..35 characters" });
     }
     const rn = params.get(keys.referencePartyName);
-    if (rn !== null && rn.length > 70) {
-      issues.push({ field: "referencePartyName", message: "reference party name is limited to 70 characters" });
+    if (rn !== null && (rn.length < 1 || rn.length > 70)) {
+      issues.push({ field: "referencePartyName", message: "reference party name must be 1..70 characters" });
     }
     const rtn = params.get(keys.referencePartyTradeName);
-    if (rtn !== null && rtn.length > 35) {
-      issues.push({ field: "referencePartyTradeName", message: "reference party trade name is limited to 35 characters" });
+    if (rtn !== null && (rtn.length < 1 || rtn.length > 35)) {
+      issues.push({ field: "referencePartyTradeName", message: "reference party trade name must be 1..35 characters" });
     }
     data = {
       kind: "payee-clear",
@@ -534,8 +546,8 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       issues.push({ field: "proxy", message: "proxy must be 1..70 characters" });
     }
     const rpx = params.get(keys.referencePartyProxy);
-    if (rpx !== null && rpx.length > 70) {
-      issues.push({ field: "referencePartyProxy", message: "reference party proxy is limited to 70 characters" });
+    if (rpx !== null && (rpx.length < 1 || rpx.length > 70)) {
+      issues.push({ field: "referencePartyProxy", message: "reference party proxy must be 1..70 characters" });
     }
     data = {
       kind: "payee-proxy",
