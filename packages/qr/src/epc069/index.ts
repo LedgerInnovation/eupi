@@ -24,8 +24,8 @@
  * trailing separator.
  */
 
-import { isValidIban, isValidRfReference, normalizeIban } from "../shared/iban.js";
-import { byteLength, isLatin1, type EpcCharset } from "../shared/text.js";
+import { isNonEeaSepaIban, isValidIban, isValidRfReference, normalizeIban } from "../shared/iban.js";
+import { byteLength, hasControlChars, isLatin1, type EpcCharset } from "../shared/text.js";
 import { formatAmount, isValidAmountString } from "../shared/amount.js";
 
 export const EPC069_MAX_BYTES = 331;
@@ -89,10 +89,23 @@ export class EpcQrError extends Error {
 function collectIssues(data: EpcQrData): EpcQrIssue[] {
   const issues: EpcQrIssue[] = [];
 
+  // Control characters would shift the meaning of every following element,
+  // letting a crafted free-text field displace the beneficiary's IBAN.
+  for (const [element, value] of [
+    ["name", data.name],
+    ["reference", data.reference],
+    ["text", data.text],
+    ["information", data.information],
+  ] as const) {
+    if (value !== undefined && hasControlChars(value)) {
+      issues.push({ element, message: `${element} must not contain control characters` });
+    }
+  }
+
   if (data.version !== "001" && data.version !== "002") {
     issues.push({ element: "version", message: `unknown version "${data.version}"` });
   }
-  if (!(data.charset >= 1 && data.charset <= 8)) {
+  if (!Number.isInteger(data.charset) || data.charset < 1 || data.charset > 8) {
     issues.push({ element: "charset", message: `character set must be 1..8, got ${data.charset}` });
   }
 
@@ -100,6 +113,13 @@ function collectIssues(data: EpcQrData): EpcQrIssue[] {
     if (!BIC_RE.test(data.bic)) issues.push({ element: "bic", message: `invalid BIC "${data.bic}"` });
   } else if (data.version === "001") {
     issues.push({ element: "bic", message: "BIC is mandatory in version 001" });
+  } else if (isNonEeaSepaIban(data.iban)) {
+    // Version 002 keeps the BIC mandatory for SCT scheme participants from
+    // non-EEA countries; the IBAN country is the signal available here.
+    issues.push({
+      element: "bic",
+      message: "BIC is mandatory for beneficiary accounts in non-EEA SEPA countries",
+    });
   }
 
   if (!data.name || data.name.length > 70) {
@@ -238,7 +258,10 @@ export function decodeEpcQr(payload: string, options: DecodeEpcQrOptions = {}): 
     ]);
   }
 
-  const charsetNum = Number(lines[2]);
+  // The character set element is exactly one digit: "01", " 1" and "1.0"
+  // must not be coerced into a supported value.
+  const charsetSeg = lines[2] ?? "";
+  const charsetNum = /^[1-8]$/.test(charsetSeg) ? Number(charsetSeg) : Number.NaN;
   const data: EpcQrData = {
     version: lines[1] as EpcQrData["version"],
     charset: charsetNum as EpcCharset,

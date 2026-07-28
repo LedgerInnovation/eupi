@@ -1,6 +1,6 @@
 {
   "name": "@eupi/taler",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Top up GNU Taler reserves with standard European payment QR codes (EPC069-12 / EN 18184)",
   "keywords": [
     "taler",
@@ -48,10 +48,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eupi/qr": "workspace:^"
+    "@eupi/qr": "workspace:^0.1.1"
   },
   "devDependencies": {
-    "tsup": "^8.5.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"
   }
