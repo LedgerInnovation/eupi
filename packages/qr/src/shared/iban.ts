@@ -54,12 +54,16 @@ export function isValidIban(input: string): boolean {
 }
 
 /**
- * SEPA countries outside the EEA. EPC069-12 keeps the BIC mandatory for
- * transactions involving SCT scheme participants from non-EEA countries,
- * so version 002 payloads paying into these countries still need one.
+ * IBAN country prefixes of SEPA scheme countries outside the EEA, per the
+ * EPC list of SEPA scheme countries (EPC409-09). EPC069-12 keeps the BIC
+ * mandatory for transactions involving SCT scheme participants from non-EEA
+ * countries, so version 002 payloads paying into these still need one.
+ *
+ * Guernsey, Jersey and the Isle of Man have no IBAN prefixes of their own:
+ * their accounts use GB, which is already listed.
  */
 export const NON_EEA_SEPA_COUNTRIES: ReadonlySet<string> = new Set([
-  "AD", "CH", "GB", "GG", "IM", "JE", "MC", "SM", "VA",
+  "AD", "AL", "CH", "GB", "GI", "MC", "MD", "ME", "MK", "RS", "SM", "VA",
 ]);
 
 /** True when the IBAN belongs to a SEPA country outside the EEA. */
