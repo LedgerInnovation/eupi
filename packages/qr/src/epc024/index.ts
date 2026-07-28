@@ -172,6 +172,9 @@ function mergeKeys(overrides?: Partial<MsctKeys>): MsctKeys {
   return keys;
 }
 
+/** Payment contexts defined for payee-presented codes (EPC024-22 section 4.5). */
+export const MSCT_CONTEXTS: readonly MsctContext[] = ["m", "e", "i", "p", "w"];
+
 function baseUrl(domain: string, version: number, context: string, providerId: string): URL {
   // The domain must be a bare hostname. Interpolating anything else lets a
   // caller point the QR at another host entirely, for example by smuggling
@@ -194,7 +197,20 @@ function baseUrl(domain: string, version: number, context: string, providerId: s
       { field: "version", message: "only QR-code specification version 1 is defined" },
     ]);
   }
+  // TypeScript constrains the payee context, but JavaScript callers do not
+  // get that check, and a stray path separator would restructure the URL.
+  if (!/^[A-Za-z0-9]$/.test(context)) {
+    throw new MsctQrError("invalid type segment", [
+      { field: "context", message: "must be a single alphanumeric character" },
+    ]);
+  }
   return new URL(`https://${domain}/${version}/${context}/${providerId}/`);
+}
+
+function requirePayeeContext(context: string, issues: MsctIssue[]): void {
+  if (!(MSCT_CONTEXTS as readonly string[]).includes(context)) {
+    issues.push({ field: "context", message: `unknown payment context "${context}"` });
+  }
 }
 
 function requireIssuer(issuer: string, issues: MsctIssue[]): void {
@@ -262,6 +278,7 @@ function applyTransactionFields(
 export function encodeMsctPayeeToken(options: PayeeTokenOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
+  requirePayeeContext(options.context, issues);
   requireIssuer(options.issuer, issues);
   checkText("token", options.token, issues);
   if (options.token.length < 1 || options.token.length > 300) {
@@ -279,6 +296,7 @@ export function encodeMsctPayeeToken(options: PayeeTokenOptions): string {
 export function encodeMsctPayeeProxy(options: PayeeProxyOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
+  requirePayeeContext(options.context, issues);
   requireIssuer(options.issuer, issues);
   checkText("proxy", options.proxy, issues);
   checkText("referencePartyProxy", options.referencePartyProxy, issues);
@@ -307,6 +325,7 @@ export function encodeMsctPayeeProxy(options: PayeeProxyOptions): string {
 export function encodeMsctPayeeClear(options: PayeeClearOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
+  requirePayeeContext(options.context, issues);
   requireIssuer(options.issuer, issues);
   checkText("name", options.name, issues);
   checkText("tradeName", options.tradeName, issues);
@@ -355,6 +374,9 @@ export function encodeMsctPayeeClear(options: PayeeClearOptions): string {
 export function encodeMsctPayerToken(options: PayerTokenOptions): string {
   const keys = mergeKeys(options.keys);
   const issues: MsctIssue[] = [];
+  // The payer-presented type segment is reserved for future use, so it is not
+  // constrained to the payee contexts; baseUrl still requires a single
+  // alphanumeric character so the path cannot be restructured.
   requireIssuer(options.issuer, issues);
   checkText("token", options.token, issues);
   checkText("valueAddedServices", options.valueAddedServices, issues);
@@ -454,6 +476,23 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   if (url.protocol !== "https:") {
     throw new MsctQrError("MSCT QR codes must use https", [{ field: "url", message: `unexpected protocol ${url.protocol}` }]);
   }
+  if (url.port !== "") {
+    // A non-default port is dropped from the reported `domain`, so accepting
+    // it would misreport where the payload is served from.
+    throw new MsctQrError("MSCT QR URLs must not specify a port", [
+      { field: "url", message: `unexpected port ${url.port}` },
+    ]);
+  }
+  if (!HOSTNAME_RE.test(url.hostname)) {
+    throw new MsctQrError("invalid domain", [
+      { field: "domain", message: `"${url.hostname}" is not a valid hostname` },
+    ]);
+  }
+  if (url.hash !== "") {
+    throw new MsctQrError("MSCT QR URLs must not carry a fragment", [
+      { field: "url", message: "fragment is not part of the payload" },
+    ]);
+  }
   if (url.username !== "" || url.password !== "") {
     // Credentials in the authority are a spoofing device: the visible prefix
     // is not the host the payer's software would actually contact.
@@ -496,6 +535,16 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   for (const [field, name] of Object.entries(keys)) {
     if (params.getAll(name).length > 1) {
       issues.push({ field, message: `parameter "${name}" appears more than once` });
+    }
+  }
+
+  // Percent-encoding carries control characters through transport; they must
+  // not reach payment data on the decode side either.
+  for (const [field, name] of Object.entries(keys)) {
+    for (const value of params.getAll(name)) {
+      if (hasControlChars(value)) {
+        issues.push({ field, message: `${field} must not contain control characters` });
+      }
     }
   }
 

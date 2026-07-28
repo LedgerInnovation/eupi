@@ -12,6 +12,7 @@ export {
 
 export {
   DEFAULT_KEYS,
+  MSCT_CONTEXTS,
   MsctQrError,
   decodeMsctQr,
   encodeMsctPayeeClear,
@@ -32,6 +33,13 @@ export {
   type PayerTokenOptions,
 } from "./epc024/index.js";
 
-export { IBAN_LENGTHS, isValidIban, isValidRfReference, normalizeIban } from "./shared/iban.js";
+export {
+  IBAN_LENGTHS,
+  NON_EEA_SEPA_COUNTRIES,
+  isNonEeaSepaIban,
+  isValidIban,
+  isValidRfReference,
+  normalizeIban,
+} from "./shared/iban.js";
 export { formatAmount, isValidAmountString } from "./shared/amount.js";
-export { byteLength, isLatin1, type EpcCharset } from "./shared/text.js";
+export { byteLength, hasControlChars, isLatin1, type EpcCharset } from "./shared/text.js";
