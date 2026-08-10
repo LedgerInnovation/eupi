@@ -22,9 +22,9 @@ pnpm --filter @eupi/qr build
 pnpm --filter @eupi/wallet start
 ```
 
-Then open the project in [Expo Go](https://expo.dev/go) on a device, or press `a` for an
-Android emulator and `i` for an iOS simulator. No Android Studio or Xcode install is needed to
-run it through Expo Go.
+Then open the project in [Expo Go](https://expo.dev/go) on a physical device, which needs no
+Android Studio or Xcode install. The emulator paths are `a` for Android, which requires Android
+Studio, and `i` for the iOS simulator, which requires Xcode on macOS.
 
 `@eupi/qr` has to be built before the app can resolve it, which the second command does.
 
