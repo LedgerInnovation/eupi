@@ -1,0 +1,10 @@
+.expo/
+expo-env.d.ts
+web-build/
+.metro-health-check*
+*.tsbuildinfo
+
+# Generated native projects: this app is managed by the Expo config plugin
+# system, so android/ and ios/ are produced by prebuild rather than committed.
+/android
+/ios
