@@ -6,9 +6,13 @@ import { formatIbanForDisplay, type Payee } from "../epc/request";
 
 interface PayeeScreenProps {
   payee: Payee;
-  onSave: (payee: Payee) => void;
+  /** Rejects when the settings could not be written to the device. */
+  onSave: (payee: Payee) => Promise<void>;
   onCancel: () => void;
+  notice?: string | null;
 }
+
+const SAVE_FAILED = "Settings could not be saved to this device. Nothing was stored.";
 
 /**
  * Edits the beneficiary details the request codes are built from.
@@ -16,12 +20,27 @@ interface PayeeScreenProps {
  * These are settings on the device, not an account: nothing is registered
  * anywhere and no interface is called to verify them.
  */
-export function PayeeScreen({ payee, onSave, onCancel }: PayeeScreenProps) {
+export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScreenProps) {
   const [draft, setDraft] = useState<Payee>(payee);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const iban = draft.iban.replace(/\s+/g, "").toUpperCase();
   const ibanValid = iban === "" || isValidIban(iban);
   const complete = draft.name.trim() !== "" && iban !== "" && ibanValid;
+
+  // The draft is kept on failure so a full retype is never the cost of a failed write.
+  const submit = async () => {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      await onSave({ name: draft.name.trim(), iban, bic: draft.bic.trim().toUpperCase() });
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -30,6 +49,8 @@ export function PayeeScreen({ payee, onSave, onCancel }: PayeeScreenProps) {
         Held on this device only. The wallet has no accounts and no backend and never routes
         funds.
       </Text>
+
+      {notice === null ? null : <Text style={styles.error}>{notice}</Text>}
 
       <View style={styles.field}>
         <Text style={styles.label}>Name</Text>
@@ -75,18 +96,27 @@ export function PayeeScreen({ payee, onSave, onCancel }: PayeeScreenProps) {
         </Text>
       </View>
 
+      {saveFailed ? <Text style={styles.error}>{SAVE_FAILED}</Text> : null}
+
       <View style={styles.actions}>
-        <Pressable onPress={onCancel} accessibilityRole="button" style={styles.secondary}>
+        <Pressable
+          onPress={onCancel}
+          accessibilityRole="button"
+          disabled={saving}
+          style={styles.secondary}
+        >
           <Text style={styles.secondaryLabel}>Cancel</Text>
         </Pressable>
         <Pressable
-          onPress={() => onSave({ name: draft.name.trim(), iban, bic: draft.bic.trim().toUpperCase() })}
+          onPress={() => {
+            void submit();
+          }}
           accessibilityRole="button"
-          accessibilityState={{ disabled: !complete }}
-          disabled={!complete}
-          style={[styles.primary, complete ? null : styles.primaryDisabled]}
+          accessibilityState={{ disabled: !complete || saving, busy: saving }}
+          disabled={!complete || saving}
+          style={[styles.primary, complete && !saving ? null : styles.primaryDisabled]}
         >
-          <Text style={styles.primaryLabel}>Save</Text>
+          <Text style={styles.primaryLabel}>{saving ? "Saving" : "Save"}</Text>
         </Pressable>
       </View>
     </ScrollView>
