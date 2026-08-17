@@ -1,40 +1,82 @@
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
+
+import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
+import { loadPayee, savePayee } from "./src/settings/storage";
+import { PayeeScreen } from "./src/ui/PayeeScreen";
+import { RequestScreen } from "./src/ui/RequestScreen";
+
+type Screen = "request" | "payee";
+
+const READ_FAILED_NOTICE =
+  "Saved settings could not be read from this device. Enter them again to build a code.";
 
 export default function App() {
+  const [payee, setPayee] = useState<Payee>(EMPTY_PAYEE);
+  const [loaded, setLoaded] = useState(false);
+  const [screen, setScreen] = useState<Screen>("request");
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadPayee()
+      .then((stored) => {
+        if (cancelled) return;
+        setPayee(stored);
+        // A first run has nothing to build a code from, so start in settings.
+        if (stored.iban === "") setScreen("payee");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Settings that cannot be read are not the same as settings that were
+        // never set, so send the user to the form and say why it is empty
+        // rather than presenting the failure as a first run.
+        setLoadFailed(true);
+        setScreen("payee");
+      })
+      .finally(() => {
+        // Runs on both paths: a rejected read must not strand the spinner.
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Rejects when the write fails, so the screen can keep the draft and report it
+  // instead of navigating away from settings that were never persisted.
+  const onSave = useCallback(async (next: Payee) => {
+    await savePayee(next);
+    setPayee(next);
+    setLoadFailed(false);
+    setScreen("request");
+  }, []);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.root}>
       <StatusBar style="auto" />
-      <Text style={styles.title}>EUPI Wallet</Text>
-      <Text style={styles.body}>
-        Reference wallet for European payment QR codes. It renders and scans codes, then hands
-        off to the payer&apos;s own banking app. It never holds or routes funds.
-      </Text>
-      <Text style={styles.note}>Request and pay flows are not implemented yet.</Text>
-    </View>
+      {!loaded ? (
+        <ActivityIndicator style={styles.loading} />
+      ) : screen === "payee" ? (
+        <PayeeScreen
+          payee={payee}
+          onSave={onSave}
+          onCancel={() => setScreen("request")}
+          notice={loadFailed ? READ_FAILED_NOTICE : null}
+        />
+      ) : (
+        <RequestScreen payee={payee} onEditPayee={() => setScreen("payee")} />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "600",
-  },
-  body: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: "center",
-  },
-  note: {
-    fontSize: 13,
-    opacity: 0.6,
-    textAlign: "center",
+  loading: {
+    flex: 1,
   },
 });
