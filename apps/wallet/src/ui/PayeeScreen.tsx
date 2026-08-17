@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { isValidIban } from "@eupi/qr";
 
-import { formatIbanForDisplay, type Payee } from "../epc/request";
+import { formatIbanForDisplay, normalizePayee, validatePayee, type Payee } from "../epc/request";
 
 interface PayeeScreenProps {
   payee: Payee;
@@ -25,16 +24,22 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
 
-  const iban = draft.iban.replace(/\s+/g, "").toUpperCase();
-  const ibanValid = iban === "" || isValidIban(iban);
-  const complete = draft.name.trim() !== "" && iban !== "" && ibanValid;
+  // The encoder decides what can be saved, so nothing that saves can fail to
+  // encode on the request screen. Empty fields disable Save without shouting.
+  const normalized = normalizePayee(draft);
+  const issues = validatePayee(draft);
+  const complete = Object.keys(issues).length === 0;
+  // A required BIC is reported on an empty field, since emptiness is the problem.
+  const nameError = normalized.name === "" ? undefined : issues.name;
+  const ibanError = normalized.iban === "" ? undefined : issues.iban;
+  const bicError = issues.bic;
 
   // The draft is kept on failure so a full retype is never the cost of a failed write.
   const submit = async () => {
     setSaving(true);
     setSaveFailed(false);
     try {
-      await onSave({ name: draft.name.trim(), iban, bic: draft.bic.trim().toUpperCase() });
+      await onSave(normalized);
     } catch {
       setSaveFailed(true);
     } finally {
@@ -61,6 +66,7 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
           placeholder="Beneficiary name, up to 70 characters"
           autoCorrect={false}
         />
+        {nameError === undefined ? null : <Text style={styles.error}>{nameError}</Text>}
       </View>
 
       <View style={styles.field}>
@@ -73,10 +79,10 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
           autoCapitalize="characters"
           autoCorrect={false}
         />
-        {ibanValid ? (
-          iban === "" ? null : <Text style={styles.hint}>{formatIbanForDisplay(iban)}</Text>
-        ) : (
-          <Text style={styles.error}>Check digits or length do not match ISO 13616</Text>
+        {ibanError !== undefined ? (
+          <Text style={styles.error}>{ibanError}</Text>
+        ) : normalized.iban === "" ? null : (
+          <Text style={styles.hint}>{formatIbanForDisplay(normalized.iban)}</Text>
         )}
       </View>
 
@@ -90,6 +96,7 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
           autoCapitalize="characters"
           autoCorrect={false}
         />
+        {bicError === undefined ? null : <Text style={styles.error}>{bicError}</Text>}
         <Text style={styles.hint}>
           Version 002 codes leave the BIC out for EEA beneficiaries. It stays mandatory for
           accounts in SEPA countries outside the EEA.

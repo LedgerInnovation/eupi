@@ -7,6 +7,8 @@ import {
   formatAmountForDisplay,
   formatIbanForDisplay,
   normalizeAmountInput,
+  normalizePayee,
+  validatePayee,
   type Payee,
 } from "../src/epc/request";
 
@@ -109,6 +111,16 @@ describe("buildPaymentRequest", () => {
     expect(wrongCheckDigits.issues.map((issue) => issue.element)).toEqual(["iban"]);
   });
 
+  it("refuses a non-EEA payee without a BIC and points at the setting", () => {
+    const result = buildPaymentRequest({ ...payee, iban: "CH9300762011623852957" }, EMPTY_FORM);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues).toEqual([
+      { element: "bic", message: expect.stringContaining("(payee settings)") },
+    ]);
+  });
+
   it("surfaces the codec's own issues, such as remittance text that is too long", () => {
     const result = buildPaymentRequest(payee, {
       ...EMPTY_FORM,
@@ -126,6 +138,76 @@ describe("buildPaymentRequest", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues.map((issue) => issue.element)).toContain("name");
+  });
+});
+
+describe("validatePayee", () => {
+  it("accepts an EEA payee with no BIC, which version 002 allows", () => {
+    expect(validatePayee(payee)).toEqual({});
+  });
+
+  it("accepts a well-formed BIC in either length", () => {
+    expect(validatePayee({ ...payee, bic: "BFSWDE33" })).toEqual({});
+    expect(validatePayee({ ...payee, bic: "bfswde33mue" })).toEqual({});
+  });
+
+  it("requires a BIC for accounts in SEPA countries outside the EEA", () => {
+    // Swiss and UK IBANs are SEPA but not EEA, so element 5 stays mandatory.
+    for (const iban of ["CH9300762011623852957", "GB29NWBK60161331926819"]) {
+      const issues = validatePayee({ ...payee, iban });
+      expect(Object.keys(issues)).toEqual(["bic"]);
+      expect(issues.bic).toMatch(/outside the EEA/);
+      expect(validatePayee({ ...payee, iban, bic: "UBSWCHZH80A" })).toEqual({});
+    }
+  });
+
+  it("rejects a malformed BIC even where one is optional", () => {
+    for (const bic of ["BFSW", "BFSWDE3", "BFSWDE33MU", "1FSWDE33", "BFSW-E33"]) {
+      expect(Object.keys(validatePayee({ ...payee, bic }))).toEqual(["bic"]);
+    }
+  });
+
+  it("limits the name to 70 characters and refuses control characters", () => {
+    expect(validatePayee({ ...payee, name: "x".repeat(70) })).toEqual({});
+    expect(Object.keys(validatePayee({ ...payee, name: "x".repeat(71) }))).toEqual(["name"]);
+    expect(Object.keys(validatePayee({ ...payee, name: "Acme\nGmbH" }))).toEqual(["name"]);
+  });
+
+  it("prompts for empty required fields and describes bad check digits", () => {
+    expect(validatePayee({ name: "", iban: "", bic: "" })).toEqual({
+      name: "Enter the beneficiary name",
+      iban: "Enter the IBAN",
+    });
+    expect(validatePayee({ ...payee, iban: "DE34100205000001194700" }).iban).toMatch(/ISO 13616/);
+  });
+
+  it("reports every failing field at once", () => {
+    const issues = validatePayee({ name: "x".repeat(71), iban: "CH9300762011623852957", bic: "" });
+    expect(Object.keys(issues).sort()).toEqual(["bic", "name"]);
+  });
+
+  it("agrees with buildPaymentRequest on what a payee may be", () => {
+    // Anything the form lets through must encode; anything it refuses must not.
+    const candidates: Payee[] = [
+      payee,
+      { ...payee, iban: "CH9300762011623852957" },
+      { ...payee, iban: "CH9300762011623852957", bic: "UBSWCHZH80A" },
+      { ...payee, bic: "nope" },
+      { ...payee, name: "x".repeat(71) },
+      { name: " Acme ", iban: " de33 1002 0500 0001 1947 00 ", bic: " bfswde33mue " },
+    ];
+    for (const candidate of candidates) {
+      const saved = Object.keys(validatePayee(candidate)).length === 0;
+      expect(buildPaymentRequest(candidate, EMPTY_FORM).ok).toBe(saved);
+    }
+  });
+});
+
+describe("normalizePayee", () => {
+  it("trims the name and compacts the identifiers to upper case", () => {
+    expect(
+      normalizePayee({ name: " Acme ", iban: " de33 1002 0500 0001 1947 00 ", bic: " bfswde33mue " }),
+    ).toEqual({ name: "Acme", iban: "DE33100205000001194700", bic: "BFSWDE33MUE" });
   });
 });
 

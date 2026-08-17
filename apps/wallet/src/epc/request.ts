@@ -10,7 +10,6 @@ import {
   EpcQrError,
   decodeEpcQr,
   isValidAmountString,
-  isValidIban,
   type EpcQrData,
   type EpcQrIssue,
   encodeEpcQr,
@@ -46,6 +45,66 @@ export const EMPTY_PAYEE: Payee = { name: "", iban: "", bic: "" };
 
 export const EMPTY_FORM: RequestForm = { amount: "", remittanceKind: "text", remittance: "" };
 
+export type PayeeField = keyof Payee;
+
+/** One message per field that would keep the payee out of a payload. */
+export type PayeeIssues = Partial<Record<PayeeField, string>>;
+
+const PAYEE_FIELDS: ReadonlySet<string> = new Set<PayeeField>(["name", "iban", "bic"]);
+
+/** Normalises typed payee fields the way the encoder will see them. */
+export function normalizePayee(payee: Payee): Payee {
+  return {
+    name: payee.name.trim(),
+    iban: payee.iban.replace(/\s+/g, "").toUpperCase(),
+    bic: payee.bic.replace(/\s+/g, "").toUpperCase(),
+  };
+}
+
+/**
+ * Validates the payee against the encoder itself, run without an amount or
+ * remittance so only the beneficiary elements are in play. The settings form
+ * therefore rejects exactly what the request screen would fail on later,
+ * including the conditional BIC of EPC069-12: optional for EEA accounts in
+ * version 002, still mandatory for accounts in SEPA countries outside the EEA.
+ *
+ * Empty fields get a prompt rather than the encoder's wording, since an empty
+ * form is a state and not a mistake. Messages that would echo the typed value
+ * are replaced with a description of what the element must look like.
+ */
+export function validatePayee(payee: Payee): PayeeIssues {
+  const { name, iban, bic } = normalizePayee(payee);
+  const issues: PayeeIssues = {};
+
+  try {
+    encodeEpcQr({ name, iban, ...(bic === "" ? {} : { bic }) });
+  } catch (error) {
+    if (!(error instanceof EpcQrError)) throw error;
+    for (const issue of error.issues) {
+      if (!PAYEE_FIELDS.has(issue.element)) continue;
+      const field = issue.element as PayeeField;
+      issues[field] ??= describePayeeIssue(field, issue.message, { name, iban, bic });
+    }
+  }
+
+  if (name === "") issues.name = "Enter the beneficiary name";
+  if (iban === "") issues.iban = "Enter the IBAN";
+  return issues;
+}
+
+function describePayeeIssue(field: PayeeField, message: string, payee: Payee): string {
+  switch (field) {
+    case "iban":
+      return "Check digits or length do not match ISO 13616";
+    case "bic":
+      return payee.bic === ""
+        ? "A BIC is required for accounts in SEPA countries outside the EEA"
+        : "A BIC is 8 or 11 characters: 6 letters, then letters or digits";
+    default:
+      return message.charAt(0).toUpperCase() + message.slice(1);
+  }
+}
+
 /**
  * Normalises a typed amount into the numeric string EPC069-12 expects.
  *
@@ -69,16 +128,11 @@ export function normalizeAmountInput(input: string): string {
 export function buildPaymentRequest(payee: Payee, form: RequestForm): BuildRequestResult {
   const issues: EpcQrIssue[] = [];
 
-  const name = payee.name.trim();
-  const iban = payee.iban.replace(/\s+/g, "").toUpperCase();
-  const bic = payee.bic.replace(/\s+/g, "").toUpperCase();
-  if (name === "") {
-    issues.push({ element: "name", message: "set the payee name in settings" });
-  }
-  if (iban === "") {
-    issues.push({ element: "iban", message: "set the payee IBAN in settings" });
-  } else if (!isValidIban(iban)) {
-    issues.push({ element: "iban", message: "the payee IBAN in settings is not valid" });
+  // Same check the settings form runs, so a payee that saved will encode and a
+  // payee that cannot encode is reported against its field, not against the code.
+  const { name, iban, bic } = normalizePayee(payee);
+  for (const [element, message] of Object.entries(validatePayee(payee))) {
+    issues.push({ element, message: `${message} (payee settings)` });
   }
 
   // encodeEpcQr throws a RangeError on an unparseable amount before it reports
