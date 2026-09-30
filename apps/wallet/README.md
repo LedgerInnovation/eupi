@@ -7,6 +7,8 @@ authorise the transfer.
 The app never holds or routes funds and never submits an order to a bank interface. There are
 no accounts and no backend.
 
+Get it on the [App Store](https://apps.apple.com/app/euvena/id6816377996) or [Google Play](https://play.google.com/store/apps/details?id=com.ledgerinnovation.euvena).
+
 ## Status
 
 The request flow is implemented. Enter an amount, and what the payment is for when there is one,

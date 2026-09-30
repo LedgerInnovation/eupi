@@ -39,6 +39,9 @@ Euvena was previously named EUPI. Releases up to September 2026 were published o
 
 ## Try it
 
+The wallet is free on the [App Store](https://apps.apple.com/app/euvena/id6816377996) and
+[Google Play](https://play.google.com/store/apps/details?id=com.ledgerinnovation.euvena). To build on the codec:
+
 ```sh
 npm install @euvena/qr
 ```
